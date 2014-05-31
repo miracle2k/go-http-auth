@@ -108,17 +108,17 @@ func DigestAuthParams(r *http.Request) map[string]string {
 	return result
 }
 
-/* 
+/*
  Check if request contains valid authentication data. Returns a pair
  of username, authinfo where username is the name of the authenticated
  user or an empty string and authinfo is the contents for the optional
  Authentication-Info response header.
 */
-func (da *DigestAuth) CheckAuth(r *http.Request) (username string, authinfo *string) {
+func (da *DigestAuth) CheckAuth(r *http.Request) (username string, authinfo string) {
 	da.mutex.Lock()
 	defer da.mutex.Unlock()
 	username = ""
-	authinfo = nil
+	authinfo = ""
 	auth := DigestAuthParams(r)
 	if auth == nil || da.Opaque != auth["opaque"] || auth["algorithm"] != "MD5" || auth["qop"] != "auth" {
 		return
@@ -169,7 +169,7 @@ func (da *DigestAuth) CheckAuth(r *http.Request) (username string, authinfo *str
 	rspauth := H(strings.Join([]string{HA1, auth["nonce"], auth["nc"], auth["cnonce"], auth["qop"], resp_HA2}, ":"))
 
 	info := fmt.Sprintf(`qop="auth", rspauth="%s", cnonce="%s", nc="%s"`, rspauth, auth["cnonce"], auth["nc"])
-	return auth["username"], &info
+	return auth["username"], info
 }
 
 /*
@@ -193,8 +193,8 @@ func (a *DigestAuth) Wrap(wrapped AuthenticatedHandlerFunc) http.HandlerFunc {
 			a.RequireAuth(w, r)
 		} else {
 			ar := &AuthenticatedRequest{Request: *r, Username: username}
-			if authinfo != nil {
-				w.Header().Set("Authentication-Info", *authinfo)
+			if authinfo != "" {
+				w.Header().Set("Authentication-Info", authinfo)
 			}
 			wrapped(w, ar)
 		}

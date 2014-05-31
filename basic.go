@@ -19,40 +19,40 @@ type BasicAuth struct {
 
  Supports MD5 and SHA1 password entries
 */
-func (a *BasicAuth) CheckAuth(r *http.Request) string {
+func (a *BasicAuth) CheckAuth(r *http.Request) (string, string) {
 	s := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
 	if len(s) != 2 || s[0] != "Basic" {
-		return ""
+		return "", ""
 	}
 
 	b, err := base64.StdEncoding.DecodeString(s[1])
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	pair := strings.SplitN(string(b), ":", 2)
 	if len(pair) != 2 {
-		return ""
+		return "", ""
 	}
 	passwd := a.Secrets(pair[0], a.Realm)
 	if passwd == "" {
-		return ""
+		return "", ""
 	}
 	if passwd[:5] == "{SHA}" {
 		d := sha1.New()
 		d.Write([]byte(pair[1]))
 		if passwd[5:] != base64.StdEncoding.EncodeToString(d.Sum(nil)) {
-			return ""
+			return "", ""
 		}
 	} else {
 		e := NewMD5Entry(passwd)
 		if e == nil {
-			return ""
+			return "", ""
 		}
 		if passwd != string(MD5Crypt([]byte(pair[1]), e.Salt, e.Magic)) {
-			return ""
+			return "", ""
 		}
 	}
-	return pair[0]
+	return pair[0], ""
 }
 
 /*
@@ -74,7 +74,7 @@ func (a *BasicAuth) RequireAuth(w http.ResponseWriter, r *http.Request) {
 */
 func (a *BasicAuth) Wrap(wrapped AuthenticatedHandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if username := a.CheckAuth(r); username == "" {
+		if username, _ := a.CheckAuth(r); username == "" {
 			a.RequireAuth(w, r)
 		} else {
 			ar := &AuthenticatedRequest{Request: *r, Username: username}
